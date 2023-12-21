@@ -226,8 +226,9 @@ func (p *Parser) Parse() map[any]any {
     return map[any]any{}
 }
 
+// TODO: null 
 func main() {
-	f, _ := os.ReadFile("tests/step4/valid.json")
+	f, _ := os.ReadFile("tests/step2/invalid.json")
 	l := Lexer{input: string(f)}
 	parser := Parser{l: l}
     res := parser.Parse()
