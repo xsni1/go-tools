@@ -21,19 +21,37 @@ type backend []string
 
 var backends backend
 
+type LoadBalancer interface {
+	Balance()
+}
+
+type RoundRobinBalancer struct {
+}
+
+func (rrb *RoundRobinBalancer) Balance() {}
+
+func NewLoadBalancer(strategy string) LoadBalancer {
+	switch strategy {
+	case "round-robin":
+		return &RoundRobinBalancer{}
+	default:
+		return nil
+	}
+}
+
 type BackendPool struct {
 	backends   backend
-	strategy   string
 	lastServed int
+	lb         LoadBalancer
 }
 
 func (bp *BackendPool) Balance() {
 	backend := bp.backends[bp.lastServed]
 	log.Printf("Routing to: %s", backend)
 	bp.lastServed++
-    if bp.lastServed >= len(bp.backends) {
-        bp.lastServed = 0
-    }
+	if bp.lastServed >= len(bp.backends) {
+		bp.lastServed = 0
+	}
 }
 
 func main() {
@@ -42,7 +60,8 @@ func main() {
 	flag.Var(&backends, "backend", "backends to load balance")
 	flag.Parse()
 
-	backendPool := BackendPool{backends: backends, strategy: *strategy}
+	lb := NewLoadBalancer(*strategy)
+	backendPool := BackendPool{backends: backends, lb: lb}
 
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Request received")
