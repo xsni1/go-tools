@@ -5,69 +5,38 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 )
 
-func (b *backend) Set(val string) error {
-	*b = append(*b, val)
-	return nil
-}
+func heartBeat(lb LoadBalancer) {
 
-func (b *backend) String() string {
-	return strings.Join(*b, " ")
-}
-
-type backend []string
-
-var backends backend
-
-type LoadBalancer interface {
-	Balance()
-}
-
-type RoundRobinBalancer struct {
-}
-
-func (rrb *RoundRobinBalancer) Balance() {}
-
-func NewLoadBalancer(strategy string) LoadBalancer {
-	switch strategy {
-	case "round-robin":
-		return &RoundRobinBalancer{}
-	default:
-		return nil
-	}
-}
-
-type BackendPool struct {
-	backends   backend
-	lastServed int
-	lb         LoadBalancer
-}
-
-func (bp *BackendPool) Balance() {
-	backend := bp.backends[bp.lastServed]
-	log.Printf("Routing to: %s", backend)
-	bp.lastServed++
-	if bp.lastServed >= len(bp.backends) {
-		bp.lastServed = 0
-	}
 }
 
 func main() {
 	port := flag.String("p", "8888", "lb port")
 	strategy := flag.String("strategy", "round-robin", "lb strategy")
-	flag.Var(&backends, "backend", "backends to load balance")
+	heartBeatInterval := flag.Int("heart-beat-interval", 10000, "heart beat interval in ms")
+	heartBeatAddr := flag.String("heart-beat-addr", "/health", "heart beat endpoint")
+	flag.Var(&servers, "backend", "backends to load balance")
 	flag.Parse()
 
-	lb := NewLoadBalancer(*strategy)
-	backendPool := BackendPool{backends: backends, lb: lb}
+	client := http.Client{}
+	lb := NewLoadBalancer(LoadBalancerConfig{
+		strategy:          *strategy,
+		servers:           servers,
+		client:            client,
+		heartBeatInterval: *heartBeatInterval,
+		heartBeatAddr:     *heartBeatAddr,
+	})
 
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Request received")
-		backendPool.Balance()
+		err := lb.Balance(r)
+		if err != nil {
+			log.Printf("err: %v", err)
+		}
 	})
 
+	go heartBeat(lb)
 	log.Printf("Server running, %s", *port)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", *port), nil)
 	if err != nil {
