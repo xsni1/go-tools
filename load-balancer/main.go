@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 )
 
 func main() {
@@ -16,29 +17,31 @@ func main() {
 	flag.Parse()
 
 	client := http.Client{}
-	serverPool := ServerPool{
-		servers:           servers,
+	serverPool := NewServerPool(ServerPoolConfig{
 		heartBeatInterval: *heartBeatInterval,
 		heartBeatAddr:     *heartBeatAddr,
-	}
+		addrs:             servers,
+	})
 	lb := NewLoadBalancer(LoadBalancerConfig{
+		serverPool: serverPool,
 		strategy:   *strategy,
 		client:     client,
-		serverPool: serverPool,
 	})
 
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Request received")
+		slog.Info("Request received")
 		err := lb.Balance(r)
 		if err != nil {
-			log.Printf("err: %v", err)
+			slog.Error("", "error", err)
 		}
 	})
 
 	go serverPool.HeartBeat()
-	log.Printf("Server running, %s", *port)
+	slog.Info("Server running", "port", *port)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", *port), nil)
+
 	if err != nil {
-		log.Fatalf("err ListenAndServer: %s", err)
+        slog.Error("Error ListenAndServe", "error", err)
+        os.Exit(1)
 	}
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 )
@@ -14,21 +14,22 @@ type RoundRobinBalancer struct {
 }
 
 func (rrb *RoundRobinBalancer) Balance(r *http.Request) error {
-	addr := servers[rrb.count] + "/health"
+    // server := rrb.serverPool.servers[rrb.count]
+	addr := rrb.serverPool.servers[rrb.count].addr + "/health"
 	rrb.count = (rrb.count + 1) % len(rrb.serverPool.servers)
-
 	parsedAddr, err := url.Parse(addr)
 	if err != nil {
 		return fmt.Errorf("parsing addr err: %v", err)
 	}
 
+	slog.Info("Balancing request", "target", parsedAddr, "strategy", "round-robin")
+
 	r.RequestURI = ""
 	r.URL = parsedAddr
-	res, err := rrb.client.Do(r)
+	_, err = rrb.client.Do(r)
 
 	if err != nil {
 		return fmt.Errorf("balance err: %s", err)
 	}
-	log.Printf("%s\n%v\n", addr, res)
 	return nil
 }
