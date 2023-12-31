@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -9,23 +8,27 @@ import (
 )
 
 func main() {
-	port := flag.String("p", "8888", "lb port")
-	strategy := flag.String("strategy", "round-robin", "lb strategy")
-	heartBeatInterval := flag.Int("heart-beat-interval", 10000, "heart beat interval in ms")
-	heartBeatAddr := flag.String("heart-beat-addr", "/health", "heart beat endpoint")
-	flag.Var(&servers, "backend", "backends to load balance")
-	flag.Parse()
+	cfg := readConfig()
+	servers := []*Server{}
+	for _, server := range cfg.Servers {
+		servers = append(servers, &Server{
+			addr:           server.Address,
+			weight:         server.Weight,
+			healthEndpoint: server.HeartBeat.Endpoint,
+			healthInterval: server.HeartBeat.Interval,
+			alive:          false,
+			enabled:        true,
+		})
+	}
 
 	client := http.Client{}
-	serverPool := NewServerPool(ServerPoolConfig{
-		heartBeatInterval: *heartBeatInterval,
-		heartBeatAddr:     *heartBeatAddr,
-		addrs:             servers,
-	})
+	serverPool := ServerPool{
+		servers: servers,
+	}
 	lb := NewLoadBalancer(LoadBalancerConfig{
 		serverPool: serverPool,
-		strategy:   *strategy,
 		client:     client,
+		strategy:   cfg.Strategy,
 	})
 
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -36,12 +39,12 @@ func main() {
 		}
 	})
 
-	go serverPool.HeartBeat()
-	slog.Info("Server running", "port", *port)
-	err := http.ListenAndServe(fmt.Sprintf(":%s", *port), nil)
+	go serverPool.RunHeartBeats()
+	slog.Info("Server running", "port", cfg.Port)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.Port), nil)
 
 	if err != nil {
-        slog.Error("Error ListenAndServe", "error", err)
-        os.Exit(1)
+		slog.Error("Error ListenAndServe", "error", err)
+		os.Exit(1)
 	}
 }

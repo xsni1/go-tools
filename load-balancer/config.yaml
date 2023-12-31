@@ -1,0 +1,13 @@
+port: 8888
+strategy: "round-robin"
+servers:
+  - address: "http://localhost:8080"
+    weight: 1
+    heart-beat:
+      interval: 3000
+      endpoint: "/health"
+  - address: "http://localhost:8081"
+    weight: 1
+    heart-beat:
+      interval: 1000
+      endpoint: "/health"

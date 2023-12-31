@@ -14,7 +14,7 @@ type RoundRobinBalancer struct {
 }
 
 func (rrb *RoundRobinBalancer) Balance(r *http.Request) error {
-    // server := rrb.serverPool.servers[rrb.count]
+	// server := rrb.serverPool.servers[rrb.count]
 	addr := rrb.serverPool.servers[rrb.count].addr + "/health"
 	rrb.count = (rrb.count + 1) % len(rrb.serverPool.servers)
 	parsedAddr, err := url.Parse(addr)
@@ -22,6 +22,10 @@ func (rrb *RoundRobinBalancer) Balance(r *http.Request) error {
 		return fmt.Errorf("parsing addr err: %v", err)
 	}
 
+	for _, v := range rrb.serverPool.servers {
+		fmt.Println(v.addr, v.alive)
+	}
+	// fmt.Println(rrb.serverPool.servers)
 	slog.Info("Balancing request", "target", parsedAddr, "strategy", "round-robin")
 
 	r.RequestURI = ""
