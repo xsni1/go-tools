@@ -8,16 +8,14 @@ import (
 )
 
 type RoundRobinBalancer struct {
-	servers           []string
-	count             int
-	client            http.Client
-	heartBeatInterval int
-	heartBeatAddr     string
+	count      int
+	client     http.Client
+	serverPool ServerPool
 }
 
 func (rrb *RoundRobinBalancer) Balance(r *http.Request) error {
 	addr := servers[rrb.count] + "/health"
-	rrb.count = (rrb.count + 1) % len(rrb.servers)
+	rrb.count = (rrb.count + 1) % len(rrb.serverPool.servers)
 
 	parsedAddr, err := url.Parse(addr)
 	if err != nil {

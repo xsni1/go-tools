@@ -7,21 +7,17 @@ type LoadBalancer interface {
 }
 
 type LoadBalancerConfig struct {
-	strategy          string
-	servers           []string
-	client            http.Client
-	heartBeatInterval int
-	heartBeatAddr     string
+	strategy   string
+	client     http.Client
+	serverPool ServerPool
 }
 
 func NewLoadBalancer(config LoadBalancerConfig) LoadBalancer {
 	switch config.strategy {
 	case "round-robin":
 		return &RoundRobinBalancer{
-			servers:           config.servers,
-			client:            config.client,
-			heartBeatAddr:     config.heartBeatAddr,
-			heartBeatInterval: config.heartBeatInterval,
+			client:     config.client,
+			serverPool: config.serverPool,
 		}
 	default:
 		return nil

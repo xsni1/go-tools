@@ -7,10 +7,6 @@ import (
 	"net/http"
 )
 
-func heartBeat(lb LoadBalancer) {
-
-}
-
 func main() {
 	port := flag.String("p", "8888", "lb port")
 	strategy := flag.String("strategy", "round-robin", "lb strategy")
@@ -20,12 +16,15 @@ func main() {
 	flag.Parse()
 
 	client := http.Client{}
-	lb := NewLoadBalancer(LoadBalancerConfig{
-		strategy:          *strategy,
+	serverPool := ServerPool{
 		servers:           servers,
-		client:            client,
 		heartBeatInterval: *heartBeatInterval,
 		heartBeatAddr:     *heartBeatAddr,
+	}
+	lb := NewLoadBalancer(LoadBalancerConfig{
+		strategy:   *strategy,
+		client:     client,
+		serverPool: serverPool,
 	})
 
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +35,7 @@ func main() {
 		}
 	})
 
-	go heartBeat(lb)
+	go serverPool.HeartBeat()
 	log.Printf("Server running, %s", *port)
 	err := http.ListenAndServe(fmt.Sprintf(":%s", *port), nil)
 	if err != nil {
