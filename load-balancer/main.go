@@ -31,12 +31,13 @@ func main() {
 		strategy:   cfg.Strategy,
 	})
 
-	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Request received")
-		err := lb.Balance(r)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		slog.Debug("Processing request...")
+		resp, err := lb.Balance(r)
 		if err != nil {
 			slog.Error("", "error", err)
 		}
+        w.WriteHeader(resp.StatusCode)
 	})
 
 	go serverPool.RunHeartBeats()

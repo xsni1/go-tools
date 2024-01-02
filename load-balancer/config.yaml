@@ -11,3 +11,13 @@ servers:
     heart-beat:
       interval: 1000
       endpoint: "/health"
+  - address: "http://localhost:8082"
+    weight: 1
+    heart-beat:
+      interval: 1000
+      endpoint: "/health"
+  - address: "http://localhost:8083"
+    weight: 
+    heart-beat:
+      interval: 1000
+      endpoint: "/health"

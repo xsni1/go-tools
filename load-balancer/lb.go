@@ -3,7 +3,7 @@ package main
 import "net/http"
 
 type LoadBalancer interface {
-	Balance(r *http.Request) error
+	Balance(r *http.Request) (*http.Response, error)
 }
 
 type LoadBalancerConfig struct {
