@@ -11,6 +11,7 @@ type Server struct {
 	alive          bool
 	enabled        bool
 	weight         int
+	leftWeight     int
 	healthEndpoint string
 	healthInterval int
 }

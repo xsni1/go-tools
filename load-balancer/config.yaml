@@ -1,13 +1,13 @@
 port: 8888
-strategy: "round-robin"
+strategy: "weighted-round-robin"
 servers:
   - address: "http://localhost:8080"
-    weight: 1
+    weight: 5
     heart-beat:
-      interval: 3000
+      interval: 1000
       endpoint: "/health"
   - address: "http://localhost:8081"
-    weight: 1
+    weight: 2
     heart-beat:
       interval: 1000
       endpoint: "/health"
@@ -17,7 +17,7 @@ servers:
       interval: 1000
       endpoint: "/health"
   - address: "http://localhost:8083"
-    weight: 
+    weight: 1
     heart-beat:
       interval: 1000
       endpoint: "/health"

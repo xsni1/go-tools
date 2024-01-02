@@ -5,11 +5,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 type RoundRobinBalancer struct {
 	count      int
-	client     http.Client
+	httpClient http.Client
 	serverPool ServerPool
 }
 
@@ -24,10 +25,12 @@ func (rrb *RoundRobinBalancer) Balance(r *http.Request) (*http.Response, error) 
 		return nil, fmt.Errorf("parsing addr err: %v", err)
 	}
 
-    slog.Info("Balancing request...", "address", parsedAddr, "strategy", "round-robin")
 	r.RequestURI = ""
 	r.URL = parsedAddr
-	resp, err := rrb.client.Do(r)
+	start := time.Now()
+	resp, err := rrb.httpClient.Do(r)
+	elapsed := time.Since(start)
+	slog.Info("Balancing request...", "address", parsedAddr, "strategy", "round-robin", "execution time", elapsed)
 
 	if err != nil {
 		return nil, fmt.Errorf("balance err: %s", err)

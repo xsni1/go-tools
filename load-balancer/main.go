@@ -14,6 +14,7 @@ func main() {
 		servers = append(servers, Server{
 			addr:           server.Address,
 			weight:         server.Weight,
+			leftWeight:     server.Weight,
 			healthEndpoint: server.HeartBeat.Endpoint,
 			healthInterval: server.HeartBeat.Interval,
 			alive:          false,
@@ -21,7 +22,9 @@ func main() {
 		})
 	}
 
-	client := http.Client{}
+	client := http.Client{
+		// Transport: &http.Transport{DisableKeepAlives: false, MaxIdleConns:1 },
+	}
 	serverPool := ServerPool{
 		servers: servers,
 	}
@@ -31,13 +34,23 @@ func main() {
 		strategy:   cfg.Strategy,
 	})
 
+	http.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
+		msg := ""
+		for _, v := range serverPool.servers {
+			msg += fmt.Sprintf("address: %s, weight: %d, leftWeight: %d, alive: %t\n", v.addr, v.weight, v.leftWeight, v.alive)
+		}
+		w.Write([]byte(msg))
+	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("Processing request...")
 		resp, err := lb.Balance(r)
 		if err != nil {
 			slog.Error("", "error", err)
+			w.WriteHeader(500)
+			return
 		}
-        w.WriteHeader(resp.StatusCode)
+		w.WriteHeader(resp.StatusCode)
 	})
 
 	go serverPool.RunHeartBeats()

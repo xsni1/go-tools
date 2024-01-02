@@ -16,7 +16,12 @@ func NewLoadBalancer(config LoadBalancerConfig) LoadBalancer {
 	switch config.strategy {
 	case "round-robin":
 		return &RoundRobinBalancer{
-			client:     config.client,
+			httpClient: config.client,
+			serverPool: config.serverPool,
+		}
+	case "weighted-round-robin":
+		return &WeightedRoundRobinBalancer{
+			httpClient: config.client,
 			serverPool: config.serverPool,
 		}
 	default:
