@@ -24,6 +24,11 @@ func NewLoadBalancer(config LoadBalancerConfig) LoadBalancer {
 			httpClient: config.client,
 			serverPool: config.serverPool,
 		}
+	case "least-conn":
+		return &LeastConnBalancer{
+			httpClient: config.client,
+			serverPool: config.serverPool,
+		}
 	default:
 		return nil
 	}

@@ -6,12 +6,15 @@ import (
 	"time"
 )
 
+// I think it would be nicer if implementation-specific state was not stored here
+// but with this project's structure it cannot be changed now
 type Server struct {
 	addr           string
 	alive          bool
 	enabled        bool
 	weight         int
 	leftWeight     int
+	connections    int
 	healthEndpoint string
 	healthInterval int
 }

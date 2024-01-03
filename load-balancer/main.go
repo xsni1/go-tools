@@ -37,7 +37,7 @@ func main() {
 	http.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
 		msg := ""
 		for _, v := range serverPool.servers {
-			msg += fmt.Sprintf("address: %s, weight: %d, leftWeight: %d, alive: %t\n", v.addr, v.weight, v.leftWeight, v.alive)
+			msg += fmt.Sprintf("address: %s, weight: %d, leftWeight: %d, alive: %t, conns: %d\n", v.addr, v.weight, v.leftWeight, v.alive, v.connections)
 		}
 		w.Write([]byte(msg))
 	})
