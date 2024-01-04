@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -12,10 +13,11 @@ type RoundRobinBalancer struct {
 	count      int
 	httpClient http.Client
 	serverPool ServerPool
+	mux        sync.RWMutex
 }
 
-func (rrb *RoundRobinBalancer) Balance(r *http.Request) (*http.Response, error) {
-	server := rrb.getNext()
+func (lb *RoundRobinBalancer) Balance(r *http.Request) (*http.Response, error) {
+	server := lb.getNext()
 	if server == nil {
 		return nil, fmt.Errorf("No available servers")
 	}
@@ -28,7 +30,7 @@ func (rrb *RoundRobinBalancer) Balance(r *http.Request) (*http.Response, error) 
 	r.RequestURI = ""
 	r.URL = parsedAddr
 	start := time.Now()
-	resp, err := rrb.httpClient.Do(r)
+	resp, err := lb.httpClient.Do(r)
 	elapsed := time.Since(start)
 	slog.Info("Balancing request...", "address", parsedAddr, "strategy", "round-robin", "execution time", elapsed)
 
@@ -38,13 +40,25 @@ func (rrb *RoundRobinBalancer) Balance(r *http.Request) (*http.Response, error) 
 	return resp, nil
 }
 
-func (rrb *RoundRobinBalancer) getNext() *Server {
-	for i := 0; i < len(rrb.serverPool.servers); i++ {
-		server := rrb.serverPool.servers[rrb.count]
-		rrb.count = (rrb.count + 1) % len(rrb.serverPool.servers)
+func (lb *RoundRobinBalancer) getNext() *Server {
+	for i := 0; i < len(lb.serverPool.servers); i++ {
+		server := lb.serverPool.servers[lb.getCount()]
+		lb.updateCount()
 		if server.IsAlive() {
 			return server
 		}
 	}
 	return nil
+}
+
+func (lb *RoundRobinBalancer) getCount() int {
+	defer lb.mux.RUnlock()
+	lb.mux.RLock()
+	return lb.count
+}
+
+func (lb *RoundRobinBalancer) updateCount() {
+	lb.mux.Lock()
+	lb.count = (lb.count + 1) % len(lb.serverPool.servers)
+	lb.mux.Unlock()
 }

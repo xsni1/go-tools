@@ -22,9 +22,7 @@ func main() {
 		})
 	}
 
-	client := http.Client{
-		// Transport: &http.Transport{DisableKeepAlives: false, MaxIdleConns:1 },
-	}
+	client := http.Client{}
 	serverPool := ServerPool{
 		servers: servers,
 	}
