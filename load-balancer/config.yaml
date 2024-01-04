@@ -1,6 +1,7 @@
 port: 8888
-strategy: "round-robin"
+# strategy: "round-robin"
 # strategy: "least-conn"
+strategy: "weighted-round-robin"
 servers:
   - address: "http://localhost:8080"
     weight: 5

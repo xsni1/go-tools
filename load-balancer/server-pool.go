@@ -33,6 +33,24 @@ func (s *Server) IsAlive() bool {
     return s.alive
 }
 
+func (s *Server) DecrementLeftWeight() {
+    s.mux.Lock()
+    s.leftWeight--
+    s.mux.Unlock()
+}
+
+func (s *Server) ResetLeftWeight() {
+    s.mux.Lock()
+    s.leftWeight = s.weight
+    s.mux.Unlock()
+}
+
+func (s *Server) GetLeftWeight() int {
+    defer s.mux.RUnlock()
+    s.mux.RLock()
+    return s.leftWeight
+}
+
 type ServerPool struct {
     // Has to be a slice of pointers because of mux
     // Is there a nicer way?

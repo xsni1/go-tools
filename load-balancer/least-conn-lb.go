@@ -47,11 +47,11 @@ func (rrb *LeastConnBalancer) getNext() *Server {
 	// No need to worry about perf though (for now)
 	for idx := range rrb.serverPool.servers {
         v := rrb.serverPool.servers[idx]
-		if v.alive && server == nil {
+		if v.IsAlive() && server == nil {
 			server = v
 			continue
 		}
-		if server != nil && v.alive && v.connections < server.connections {
+		if server != nil && v.IsAlive() && v.connections < server.connections {
 			server = v
 			continue
 		}

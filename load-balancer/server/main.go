@@ -4,9 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
+	// "math/rand"
 	"net/http"
-	"time"
+	// "time"
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 		log.Printf("Received HEALTH request")
 	})
 	s.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(time.Duration(rand.Intn(10)) * time.Second)
+		// time.Sleep(time.Duration(rand.Intn(10)) * time.Second)
 		log.Printf("Received TEST request")
 	})
 
