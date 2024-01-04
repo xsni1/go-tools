@@ -42,9 +42,8 @@ func (rrb *RoundRobinBalancer) getNext() *Server {
 	for i := 0; i < len(rrb.serverPool.servers); i++ {
 		server := rrb.serverPool.servers[rrb.count]
 		rrb.count = (rrb.count + 1) % len(rrb.serverPool.servers)
-		if server.alive {
-			// does it really have to be a pointer?
-			return &server
+		if server.IsAlive() {
+			return server
 		}
 	}
 	return nil

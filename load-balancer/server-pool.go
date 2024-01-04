@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -17,19 +18,30 @@ type Server struct {
 	connections    int
 	healthEndpoint string
 	healthInterval int
+	mux            sync.RWMutex
 }
 
 func (s *Server) SetAlive(alive bool) {
+    s.mux.Lock()
 	s.alive = alive
+    s.mux.Unlock()
+}
+
+func (s *Server) IsAlive() bool {
+    defer s.mux.RUnlock()
+    s.mux.RLock()
+    return s.alive
 }
 
 type ServerPool struct {
-	servers []Server
+    // Has to be a slice of pointers because of mux
+    // Is there a nicer way?
+	servers []*Server
 }
 
 func (sp *ServerPool) RunHeartBeats() {
 	for i := range sp.servers {
-		go sp.heartBeat(&sp.servers[i])
+		go sp.heartBeat(sp.servers[i])
 	}
 }
 

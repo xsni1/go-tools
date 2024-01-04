@@ -46,7 +46,7 @@ func (rrb *LeastConnBalancer) getNext() *Server {
 	// Instead of linear search it would probably be better to use min-heap?
 	// No need to worry about perf though (for now)
 	for idx := range rrb.serverPool.servers {
-        v := &rrb.serverPool.servers[idx]
+        v := rrb.serverPool.servers[idx]
 		if v.alive && server == nil {
 			server = v
 			continue

@@ -40,7 +40,7 @@ func (rrb *WeightedRoundRobinBalancer) Balance(r *http.Request) (*http.Response,
 
 func (rrb *WeightedRoundRobinBalancer) getNext() *Server {
 	for i := 0; i < len(rrb.serverPool.servers); i++ {
-		server := &rrb.serverPool.servers[rrb.count]
+		server := rrb.serverPool.servers[rrb.count]
 		if server.alive {
 			server.leftWeight--
 			if server.leftWeight <= 0 {

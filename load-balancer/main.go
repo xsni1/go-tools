@@ -9,9 +9,9 @@ import (
 
 func main() {
 	cfg := readConfig()
-	servers := []Server{}
+	servers := []*Server{}
 	for _, server := range cfg.Servers {
-		servers = append(servers, Server{
+		servers = append(servers, &Server{
 			addr:           server.Address,
 			weight:         server.Weight,
 			leftWeight:     server.Weight,
