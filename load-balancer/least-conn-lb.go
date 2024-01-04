@@ -14,8 +14,8 @@ type LeastConnBalancer struct {
 	serverPool ServerPool
 }
 
-func (rrb *LeastConnBalancer) Balance(r *http.Request) (*http.Response, error) {
-	server := rrb.getNext()
+func (lb *LeastConnBalancer) Balance(r *http.Request) (*http.Response, error) {
+	server := lb.getNext()
 	if server == nil {
 		return nil, fmt.Errorf("No available servers")
 	}
@@ -28,9 +28,9 @@ func (rrb *LeastConnBalancer) Balance(r *http.Request) (*http.Response, error) {
 	r.RequestURI = ""
 	r.URL = parsedAddr
 	start := time.Now()
-    server.connections++
-	resp, err := rrb.httpClient.Do(r)
-    server.connections--
+    server.IncConnections()
+	resp, err := lb.httpClient.Do(r)
+    server.DecConnections()
 	elapsed := time.Since(start)
 	slog.Info("Balancing request...", "address", parsedAddr, "strategy", "least-conn", "execution time", elapsed)
 
@@ -40,18 +40,18 @@ func (rrb *LeastConnBalancer) Balance(r *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (rrb *LeastConnBalancer) getNext() *Server {
+func (lb *LeastConnBalancer) getNext() *Server {
 	var server *Server
 
 	// Instead of linear search it would probably be better to use min-heap?
 	// No need to worry about perf though (for now)
-	for idx := range rrb.serverPool.servers {
-        v := rrb.serverPool.servers[idx]
+	for idx := range lb.serverPool.servers {
+		v := lb.serverPool.servers[idx]
 		if v.IsAlive() && server == nil {
 			server = v
 			continue
 		}
-		if server != nil && v.IsAlive() && v.connections < server.connections {
+		if server != nil && v.IsAlive() && v.GetConnections() < server.GetConnections() {
 			server = v
 			continue
 		}
