@@ -161,17 +161,18 @@ func decodeDnsMsg(buffer []byte) Message {
 		n += 4
 		datalen := binary.BigEndian.Uint16(buffer[n : n+2])
 		n += 2
-		rdata, newn := parseName(buffer, n)
-		n = newn
+		rdata := buffer[n : n+int(datalen)]
+		n += int(datalen)
 
-		fmt.Println(name, nstype, class, ttl, datalen, rdata)
+        address := parseAddress(uint8(nstype), rdata)
+
 		ns := AnswerResource{
 			name:   name,
 			nstype: nstype,
 			class:  class,
 			ttl:    ttl,
 			rdlen:  datalen,
-			rdata:  rdata,
+			rdata:  address,
 		}
 
 		msg.answers = append(msg.answers, ns)
@@ -237,14 +238,16 @@ func decodeDnsMsg(buffer []byte) Message {
 
 func main() {
 	encodedmsg := encodeDnsMsg(Message{
-		rd:       0,
+		rd:       1,
 		qtype:    1,
 		qclass:   1,
 		qdcount:  1,
-		question: "onet.pl",
+		question: "dns.google.com",
+		// question: "onet.pl",
 	})
 
-	udpaddr, err := net.ResolveUDPAddr("udp", "198.41.0.4:53")
+    udpaddr, err := net.ResolveUDPAddr("udp", "8.8.8.8:53")
+	// udpaddr, err := net.ResolveUDPAddr("udp", "198.41.0.4:53")
 	if err != nil {
 		slog.Error("resolving udp addr", "error", err)
 		os.Exit(1)
