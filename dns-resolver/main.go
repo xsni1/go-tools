@@ -218,29 +218,7 @@ func decodeDnsMsg(buffer []byte) Message {
 		rdata := buffer[n : n+int(datalen)]
 		n += int(datalen)
 
-		fmt.Println("ADDITIONAL")
-		fmt.Println(name, nstype, class, ttl, datalen, rdata, n)
-		address := ""
-		// ipv4
-		if nstype == 1 {
-			for idx, v := range rdata {
-				if idx == len(rdata)-1 {
-					address += strconv.Itoa(int(v))
-					continue
-				}
-
-				address += fmt.Sprintf("%s.", strconv.Itoa(int(v)))
-			}
-			// ipv6
-		} else if nstype == 28 {
-			for i := 0; i < len(rdata); i += 2 {
-				if i == len(rdata)-1 {
-					address += fmt.Sprintf("%02x%02x", rdata[i], rdata[i+1])
-				}
-
-				address += fmt.Sprintf("%02x%02x:", rdata[i], rdata[i+1])
-			}
-		}
+		address := parseAddress(uint8(nstype), rdata)
 
 		addres := AdditionalResource{
 			name:   name,
@@ -314,4 +292,30 @@ func parseName(buffer []byte, n int) (string, int) {
 			n += labellen
 		}
 	}
+}
+
+func parseAddress(nstype uint8, data []byte) string {
+	address := ""
+	// ipv4
+	if nstype == 1 {
+		for idx, v := range data {
+			if idx == len(data)-1 {
+				address += strconv.Itoa(int(v))
+				continue
+			}
+
+			address += fmt.Sprintf("%s.", strconv.Itoa(int(v)))
+		}
+		// ipv6
+	} else if nstype == 28 {
+		for i := 0; i < len(data); i += 2 {
+			if i == len(data)-1 {
+				address += fmt.Sprintf("%02x%02x", data[i], data[i+1])
+			}
+
+			address += fmt.Sprintf("%02x%02x:", data[i], data[i+1])
+		}
+	}
+
+	return address
 }
