@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -17,6 +18,24 @@ type Question struct {
 }
 
 type Nameserver struct {
+	name   string
+	nstype uint16
+	class  uint16
+	ttl    uint32
+	rdlen  uint16
+	rdata  string
+}
+
+type AdditionalResource struct {
+	name   string
+	nstype uint16
+	class  uint16
+	ttl    uint32
+	rdlen  uint16
+	rdata  string
+}
+
+type AnswerResource struct {
 	name   string
 	nstype uint16
 	class  uint16
@@ -46,6 +65,8 @@ type Message struct {
 	// response only for now
 	questions   []Question
 	nameservers []Nameserver
+	additional  []AdditionalResource
+	answers     []AnswerResource
 }
 
 func encodeDnsMsg(opts Message) []byte {
@@ -101,8 +122,8 @@ func decodeDnsMsg(buffer []byte) Message {
 
 	msg.id = binary.BigEndian.Uint16(buffer[0:2])
 	msg.qdcount = binary.BigEndian.Uint16(buffer[4:6])
-	msg.ancount = binary.BigEndian.Uint16(buffer[6:8])
 	msg.nscount = binary.BigEndian.Uint16(buffer[8:10])
+	msg.ancount = binary.BigEndian.Uint16(buffer[6:8])
 	msg.arcount = binary.BigEndian.Uint16(buffer[10:12])
 
 	tmp := ""
@@ -129,56 +150,9 @@ func decodeDnsMsg(buffer []byte) Message {
 		msg.questions = append(msg.questions, q)
 	}
 
-	for i := 0; i < int(msg.nscount); i++ {
-		name := ""
-		// compression check
-		if buffer[n]&0b11000000 > 0 {
-			offset := binary.BigEndian.Uint16(buffer[n : n+2])
-			offset = offset - 1<<15 - 1<<14
-			n += 2
-
-			// reusing code
-			for {
-				labellen := int(buffer[offset])
-				offset++
-				if labellen == 0 {
-					break
-				}
-				name += string(buffer[offset : int(offset)+labellen])
-				offset += uint16(labellen)
-			}
-		} else {
-			for {
-				// jezeli bit kompresji to wziac wskazywany name i koniec
-				if buffer[n]&0b11000000 > 0 {
-					offset := binary.BigEndian.Uint16(buffer[n : n+2])
-					offset = offset - 1<<15 - 1<<14
-					n += 2
-
-					for {
-						labellen := int(buffer[offset])
-						offset++
-						if labellen == 0 {
-							break
-						}
-						name += string(buffer[offset : int(offset)+labellen])
-						offset += uint16(labellen)
-					}
-
-					break
-
-				} else {
-					labellen := int(buffer[n])
-					n++
-					if labellen == 0 {
-						break
-					}
-					name += string(buffer[n : n+labellen])
-					n += labellen
-				}
-			}
-		}
-
+	for i := 0; i < int(msg.ancount); i++ {
+		name, newn := parseName(buffer, n)
+		n = newn
 		nstype := binary.BigEndian.Uint16(buffer[n : n+2])
 		n += 2
 		class := binary.BigEndian.Uint16(buffer[n : n+2])
@@ -187,55 +161,35 @@ func decodeDnsMsg(buffer []byte) Message {
 		n += 4
 		datalen := binary.BigEndian.Uint16(buffer[n : n+2])
 		n += 2
+		rdata, newn := parseName(buffer, n)
+		n = newn
 
-		rdata := ""
-
-		if buffer[n]&0b11000000 > 0 {
-			offset := binary.BigEndian.Uint16(buffer[n : n+2])
-			offset = offset - 1<<15 - 1<<14
-			n += 2
-
-			// reusing code
-			for {
-				labellen := int(buffer[offset])
-				offset++
-				if labellen == 0 {
-					break
-				}
-				rdata += string(buffer[offset : int(offset)+labellen])
-				offset += uint16(labellen)
-			}
-		} else {
-			for {
-				// jezeli bit kompresji to wziac wskazywany name i koniec
-				if buffer[n]&0b11000000 > 0 {
-					offset := binary.BigEndian.Uint16(buffer[n : n+2])
-					offset = offset - 1<<15 - 1<<14
-					n += 2
-
-					for {
-						labellen := int(buffer[offset])
-						offset++
-						if labellen == 0 {
-							break
-						}
-						rdata += string(buffer[offset : int(offset)+labellen])
-						offset += uint16(labellen)
-					}
-
-					break
-
-				} else {
-					labellen := int(buffer[n])
-					n++
-					if labellen == 0 {
-						break
-					}
-					rdata += string(buffer[n : n+labellen])
-					n += labellen
-				}
-			}
+		fmt.Println(name, nstype, class, ttl, datalen, rdata)
+		ns := AnswerResource{
+			name:   name,
+			nstype: nstype,
+			class:  class,
+			ttl:    ttl,
+			rdlen:  datalen,
+			rdata:  rdata,
 		}
+
+		msg.answers = append(msg.answers, ns)
+	}
+
+	for i := 0; i < int(msg.nscount); i++ {
+		name, newn := parseName(buffer, n)
+		n = newn
+		nstype := binary.BigEndian.Uint16(buffer[n : n+2])
+		n += 2
+		class := binary.BigEndian.Uint16(buffer[n : n+2])
+		n += 2
+		ttl := binary.BigEndian.Uint32(buffer[n : n+4])
+		n += 4
+		datalen := binary.BigEndian.Uint16(buffer[n : n+2])
+		n += 2
+		rdata, newn := parseName(buffer, n)
+		n = newn
 
 		fmt.Println(name, nstype, class, ttl, datalen, rdata)
 		ns := Nameserver{
@@ -248,6 +202,56 @@ func decodeDnsMsg(buffer []byte) Message {
 		}
 
 		msg.nameservers = append(msg.nameservers, ns)
+	}
+
+	for i := 0; i < int(msg.arcount); i++ {
+		name, newn := parseName(buffer, n)
+		n = newn
+		nstype := binary.BigEndian.Uint16(buffer[n : n+2])
+		n += 2
+		class := binary.BigEndian.Uint16(buffer[n : n+2])
+		n += 2
+		ttl := binary.BigEndian.Uint32(buffer[n : n+4])
+		n += 4
+		datalen := binary.BigEndian.Uint16(buffer[n : n+2])
+		n += 2
+		rdata := buffer[n : n+int(datalen)]
+		n += int(datalen)
+
+		fmt.Println("ADDITIONAL")
+		fmt.Println(name, nstype, class, ttl, datalen, rdata, n)
+		address := ""
+		// ipv4
+		if nstype == 1 {
+			for idx, v := range rdata {
+				if idx == len(rdata)-1 {
+					address += strconv.Itoa(int(v))
+					continue
+				}
+
+				address += fmt.Sprintf("%s.", strconv.Itoa(int(v)))
+			}
+			// ipv6
+		} else if nstype == 28 {
+			for i := 0; i < len(rdata); i += 2 {
+				if i == len(rdata)-1 {
+					address += fmt.Sprintf("%02x%02x", rdata[i], rdata[i+1])
+				}
+
+				address += fmt.Sprintf("%02x%02x:", rdata[i], rdata[i+1])
+			}
+		}
+
+		addres := AdditionalResource{
+			name:   name,
+			nstype: nstype,
+			class:  class,
+			ttl:    ttl,
+			rdlen:  datalen,
+			rdata:  address,
+		}
+
+		msg.additional = append(msg.additional, addres)
 	}
 
 	return msg
@@ -286,4 +290,28 @@ func main() {
 	}
 	decodedmsg := decodeDnsMsg(respbuf[:])
 	fmt.Printf("decoded msg: %+v\n", decodedmsg)
+}
+
+func parseName(buffer []byte, n int) (string, int) {
+	name := ""
+	// If compression reserved bits present
+	for {
+		if buffer[n]&0b11000000 > 0 {
+			offset := binary.BigEndian.Uint16(buffer[n : n+2])
+			offset = offset - 1<<15 - 1<<14
+			n += 2
+
+			p, _ := parseName(buffer, int(offset))
+			name += p
+			return name, n
+		} else {
+			labellen := int(buffer[n])
+			n++
+			if labellen == 0 {
+				return name, n
+			}
+			name += string(buffer[n : n+labellen])
+			n += labellen
+		}
+	}
 }
