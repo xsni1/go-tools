@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net"
@@ -237,32 +238,44 @@ func decodeDnsMsg(buffer []byte) Message {
 }
 
 func main() {
-	encodedmsg := encodeDnsMsg(Message{
-		rd:       1,
-		qtype:    1,
-		qclass:   1,
-		qdcount:  1,
-		question: "onet.pl",
-	})
+    query := flag.String("q", "", "address to lookup")
+    flag.Parse()
+	roots := []string{
+		"a.root-servers.net",
+		"b.root-servers.net",
+		"c.root-servers.net",
+		"d.root-servers.net",
+	}
 
-	udpaddr, err := net.ResolveUDPAddr("udp", "198.41.0.4:53")
+	conn, err := net.ListenUDP("udp", nil)
 	if err != nil {
-		slog.Error("resolving udp addr", "error", err)
+		fmt.Printf("listen udp: %v", err)
 		os.Exit(1)
 	}
-	conn, err := net.ListenUDP("udp", nil)
 	defer conn.Close()
 
-	if err != nil {
-		slog.Error("dialing", "error", err)
-		os.Exit(1)
-	}
+	recursiveQuery(roots, conn, *query)
 
-	for {
+}
+
+func recursiveQuery(nameservers []string, conn *net.UDPConn, query string) bool {
+	fmt.Println("rec query", nameservers)
+	for _, ns := range nameservers {
+		encodedmsg := encodeDnsMsg(Message{
+			rd:       1,
+			qtype:    1,
+			qclass:   1,
+			qdcount:  1,
+			question: query,
+		})
+
+		ns = fmt.Sprintf("%s:53", ns)
+		fmt.Println("CALl: ", ns)
+		udpaddr, err := net.ResolveUDPAddr("udp", ns)
 		_, err = conn.WriteTo(encodedmsg, udpaddr)
 		if err != nil {
 			slog.Error("writing to udp socket", "error", err)
-            break
+			break
 		}
 		fmt.Println("message sent: ", encodedmsg)
 
@@ -270,22 +283,35 @@ func main() {
 		_, _, err = conn.ReadFrom(respbuf[:])
 		if err != nil {
 			slog.Error("reading udp msg", "error", err)
-            break
+			break
 		}
 
 		decodedmsg := decodeDnsMsg(respbuf[:])
 		fmt.Printf("decoded msg: %+v\n", decodedmsg)
 
 		if decodedmsg.ancount > 0 {
-			fmt.Println("found")
-            break
+			for _, v := range decodedmsg.answers {
+				fmt.Printf("found: %s\n", v.rdata)
+			}
+			return true
 		}
 
 		if decodedmsg.nscount > 0 {
 			fmt.Println("szukamy dalej")
-            break
+			addrs := []string{}
+
+			for _, v := range decodedmsg.nameservers {
+				// nameserver
+				if v.nstype == 2 {
+					addrs = append(addrs, v.rdata)
+				}
+			}
+
+			return recursiveQuery(addrs, conn, query)
 		}
 	}
+
+	return false
 }
 
 func parseName(buffer []byte, n int) (string, int) {
@@ -304,12 +330,12 @@ func parseName(buffer []byte, n int) (string, int) {
 			labellen := int(buffer[n])
 			n++
 			if labellen == 0 {
-                if name[len(name)-1] == '.' {
-                    name = name[:len(name)-1]
-                }
+				if name[len(name)-1] == '.' {
+					name = name[:len(name)-1]
+				}
 				return name, n
 			}
-			name += fmt.Sprintf("%s.", string(buffer[n : n+labellen]))
+			name += fmt.Sprintf("%s.", string(buffer[n:n+labellen]))
 			n += labellen
 		}
 	}
