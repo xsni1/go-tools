@@ -164,7 +164,7 @@ func decodeDnsMsg(buffer []byte) Message {
 		rdata := buffer[n : n+int(datalen)]
 		n += int(datalen)
 
-        address := parseAddress(uint8(nstype), rdata)
+		address := parseAddress(uint8(nstype), rdata)
 
 		ns := AnswerResource{
 			name:   name,
@@ -242,35 +242,50 @@ func main() {
 		qtype:    1,
 		qclass:   1,
 		qdcount:  1,
-		question: "dns.google.com",
-		// question: "onet.pl",
+		question: "onet.pl",
 	})
 
-    udpaddr, err := net.ResolveUDPAddr("udp", "8.8.8.8:53")
-	// udpaddr, err := net.ResolveUDPAddr("udp", "198.41.0.4:53")
+	udpaddr, err := net.ResolveUDPAddr("udp", "198.41.0.4:53")
 	if err != nil {
 		slog.Error("resolving udp addr", "error", err)
 		os.Exit(1)
 	}
 	conn, err := net.ListenUDP("udp", nil)
+	defer conn.Close()
+
 	if err != nil {
 		slog.Error("dialing", "error", err)
 		os.Exit(1)
 	}
 
-	_, err = conn.WriteTo(encodedmsg, udpaddr)
-	if err != nil {
-		slog.Error("writing to udp socket", "error", err)
-	}
-	fmt.Println("message sent: ", encodedmsg)
-	var respbuf [1024]byte
-	conn.ReadFrom(respbuf[:])
+	for {
+		_, err = conn.WriteTo(encodedmsg, udpaddr)
+		if err != nil {
+			slog.Error("writing to udp socket", "error", err)
+            break
+		}
+		fmt.Println("message sent: ", encodedmsg)
 
-	if err != nil {
-		slog.Error("reading udp msg", "error", err)
+		var respbuf [1024]byte
+		_, _, err = conn.ReadFrom(respbuf[:])
+		if err != nil {
+			slog.Error("reading udp msg", "error", err)
+            break
+		}
+
+		decodedmsg := decodeDnsMsg(respbuf[:])
+		fmt.Printf("decoded msg: %+v\n", decodedmsg)
+
+		if decodedmsg.ancount > 0 {
+			fmt.Println("found")
+            break
+		}
+
+		if decodedmsg.nscount > 0 {
+			fmt.Println("szukamy dalej")
+            break
+		}
 	}
-	decodedmsg := decodeDnsMsg(respbuf[:])
-	fmt.Printf("decoded msg: %+v\n", decodedmsg)
 }
 
 func parseName(buffer []byte, n int) (string, int) {
@@ -289,9 +304,12 @@ func parseName(buffer []byte, n int) (string, int) {
 			labellen := int(buffer[n])
 			n++
 			if labellen == 0 {
+                if name[len(name)-1] == '.' {
+                    name = name[:len(name)-1]
+                }
 				return name, n
 			}
-			name += string(buffer[n : n+labellen])
+			name += fmt.Sprintf("%s.", string(buffer[n : n+labellen]))
 			n += labellen
 		}
 	}
